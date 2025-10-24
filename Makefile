@@ -10,3 +10,5 @@ server: build_server
 cliente: build_cliente
 	./cliente.exe http://localhost:50000/_MetaHeursticas__Trabalho_1.pdf
 
+clean:
+	rm *.exe
