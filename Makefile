@@ -1,3 +1,5 @@
+URL ?= http://localhost:50000/index.html
+
 build_cliente:
 	gcc clienteHTTP.c -o cliente.exe
 	
@@ -8,7 +10,7 @@ server: build_server
 	./server.exe
 
 cliente: build_cliente
-	./cliente.exe http://localhost:50000/_MetaHeursticas__Trabalho_1.pdf
+	./cliente.exe ${URL}
 
 clean:
 	rm *.exe

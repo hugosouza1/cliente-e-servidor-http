@@ -244,12 +244,14 @@ int main() {
                 lista);
 
             if (n < 0 || n >= (int)resp_size) {
+                // erro
                 free(lista);
                 free(resp);
                 close(cliente);
                 continue;
             }
-
+            
+            // evia lista
             send(cliente, resp, (size_t)n, 0);
             free(lista);
             free(resp);

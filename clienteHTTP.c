@@ -125,6 +125,7 @@ int conexao_socket(Dados* URl){
     return sfd;
 }
 
+// garante que a requisição seja mandada toda
 int send_all(int sfd, const char *buf, size_t len) {
     size_t total = 0;
     while (total < len) {
