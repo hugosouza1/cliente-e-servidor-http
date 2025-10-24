@@ -1,12 +1,12 @@
 build_cliente:
-	gcc clienteHTTP.c -o cliente
+	gcc clienteHTTP.c -o cliente.exe
 	
 build_server:
-	gcc servidorHTTP.c -o server
+	gcc servidorHTTP.c -o server.exe
 
 server: build_server
-	./server
+	./server.exe
 
 cliente: build_cliente
-	./cliente http://localhost:50000/_MetaHeursticas__Trabalho_1.pdf
+	./cliente.exe http://localhost:50000/_MetaHeursticas__Trabalho_1.pdf
 
