@@ -29,6 +29,7 @@
 
   * Todas as requisções serão salvas na pasta "solicitados". Caso a pasta não exista, será criado uma.
   * Em caso de falha na requisição, será impresso o erro no terminal.
+  * A URL não pode haver espaços vazios
 
 ***
   **Servidor:**

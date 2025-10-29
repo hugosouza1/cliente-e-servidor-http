@@ -1,4 +1,4 @@
-URL ?= http://localhost:50000/index.html
+URL ?= http://localhost:50000/meta.pdf
 
 build_cliente:
 	gcc clienteHTTP.c -o cliente.exe

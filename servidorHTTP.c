@@ -199,7 +199,7 @@ int main() {
 
         char caminho_seguro[PATH_MAX];
         if (snprintf(caminho_seguro, sizeof(caminho_seguro), "%s%s", RAIZ, caminho) >= (int)sizeof(caminho_seguro)) {
-            /* caminho muito longo */
+            // caminho muito longo 
             const char *resp =
                 "HTTP/1.1 414 Request-URI Too Long\r\n"
                 "Content-Type: text/html\r\n\r\n"
