@@ -14,6 +14,28 @@
 #define BUFFER_SIZE 4096
 #define RAIZ "./www"
 
+char *decodificarEspacos(const char *caminhoCodificado) {
+    if (!caminhoCodificado) return NULL;
+
+    size_t len = strlen(caminhoCodificado);
+    char *resultado = malloc(len + 1);
+    if (!resultado) return NULL;
+
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (caminhoCodificado[i] == '%' && i + 2 < len &&
+            caminhoCodificado[i+1] == '2' && caminhoCodificado[i+2] == '0') {
+            resultado[j++] = ' ';
+            i += 2;
+        } else {
+            resultado[j++] = caminhoCodificado[i];
+        }
+    }
+
+    resultado[j] = '\0';
+    return resultado;
+}
+
 
 char *DirList(void) {
     const char *pasta = RAIZ;
@@ -74,7 +96,7 @@ int enviar_arquivo(int cliente, char *path) {
     }
 
     const char *ext = strrchr(path, '.');
-    char tipo[64];
+    char tipo[64] = "application/octet-stream"; // padrão
     if (ext && strcmp(ext, ".html") == 0)
         strcpy(tipo, "text/html");
     else if (ext && strcmp(ext, ".jpg") == 0)
@@ -84,16 +106,20 @@ int enviar_arquivo(int cliente, char *path) {
     else if (ext && strcmp(ext, ".css") == 0)
         strcpy(tipo, "text/css");
 
+
+
     char header[1024];
     int hlen = snprintf(header, sizeof(header),
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: %s\r\n"
         "Connection: close\r\n\r\n", tipo);
-    if (hlen < 0) {
+
+    if (hlen < 0) { // erro na escrita do cabeçlho
         fclose(file);
         return -1;
     }
-    if (send(cliente, header, (size_t)hlen, 0) < 0) {
+
+    if (send(cliente, header, (size_t)hlen, 0) < 0) { // envia cabeça~ho primeiro
         perror("send header");
         fclose(file);
         return -1;
@@ -101,7 +127,7 @@ int enviar_arquivo(int cliente, char *path) {
 
     char buffer[BUFFER_SIZE];
     size_t bytes;
-    while ((bytes = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+    while ((bytes = fread(buffer, 1, sizeof(buffer), file)) > 0) { // manda todos os dados do arquivo
         ssize_t s = send(cliente, buffer, bytes, 0);
         if (s < 0) {
             perror("send content");
@@ -120,7 +146,7 @@ int main() {
     struct sockaddr_in addr;
     char buffer[BUFFER_SIZE];
 
-    servidor = socket(AF_INET, SOCK_STREAM, 0);
+    servidor = socket(AF_INET, SOCK_STREAM, 0); // criação do descritor do socket
     if (servidor < 0) {
         perror("socket");
         exit(1);
@@ -133,12 +159,12 @@ int main() {
         exit(1);
     }
 
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(PORTA);
+    memset(&addr, 0, sizeof(addr)); 
+    addr.sin_family = AF_INET; // protocolo IPv4
+    addr.sin_addr.s_addr = INADDR_ANY; // identifica o IP
+    addr.sin_port = htons(PORTA); // PORT
 
-    if (bind(servidor, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if(bind(servidor, (struct sockaddr *)&addr, sizeof(addr)) < 0) { // associa IP e porta a um socket
         perror("bind");
         close(servidor);
         exit(1);
@@ -197,21 +223,36 @@ int main() {
             continue;
         }
 
+        char *caminho_decod = decodificarEspacos(caminho);
+        
+        // fprintf(stderr, "Caminho original: %s\n", caminho);
+        // fprintf(stderr, "Caminho decodificado: %s\n", caminho_decod);
+        
         char caminho_seguro[PATH_MAX];
-        if (snprintf(caminho_seguro, sizeof(caminho_seguro), "%s%s", RAIZ, caminho) >= (int)sizeof(caminho_seguro)) {
+        // Remove barra inicial se existir
+        const char *caminho_sem_barra = caminho_decod;
+        if (caminho_decod[0] == '/') {
+            caminho_sem_barra++;
+        }
+
+        if (snprintf(caminho_seguro, sizeof(caminho_seguro), "%s/%s", RAIZ, caminho_sem_barra) >= (int)sizeof(caminho_seguro)) {
             // caminho muito longo 
             const char *resp =
-                "HTTP/1.1 414 Request-URI Too Long\r\n"
-                "Content-Type: text/html\r\n\r\n"
-                "<h1>414 - Request-URI Too Long</h1>";
+            "HTTP/1.1 414 Request-URI Too Long\r\n"
+            "Content-Type: text/html\r\n\r\n"
+            "<h1>414 - Request-URI Too Long</h1>";
             send(cliente, resp, strlen(resp), 0);
             close(cliente);
             continue;
         }
 
+
         // transforma em caminho absoluto e verifica se está dentro de RAIZ 
         char caminho_real[PATH_MAX];
+        fprintf(stderr, "Tentando resolver caminho: %s\n", caminho_seguro);
+        
         if (!realpath(caminho_seguro, caminho_real)) {
+            fprintf(stderr, "realpath falhou: %s\n", strerror(errno));
             // arquivo não existe -> enviar lista 
             char *lista = DirList();
             if (!lista) {
@@ -280,6 +321,7 @@ int main() {
 
 
         // se chegou aqui, caminho_real é um arquivo 
+        // fprintf(stderr, "passou pela verificação de arquivo\n\n");
         enviar_arquivo(cliente, caminho_real);
         
         close(cliente);

@@ -29,20 +29,20 @@ void freeDados(Dados* URl){
 Dados* parse(char* entrda){
     if(entrda == NULL) return NULL;
 
-    Dados* URl = (Dados*) malloc (sizeof(Dados));
-    if(!URl) return NULL;
+    Dados* URL = (Dados*) malloc (sizeof(Dados));
+    if(!URL) return NULL;
 
-    URl->url_completa = strdup(entrda);
-    if(!URl->url_completa) { free(URl); return NULL; }
+    URL->url_completa = strdup(entrda);
+    if(!URL->url_completa) { free(URL); return NULL; }
 
     char* token;
     char* saveptr1;
 
-    token = strstr(URl->url_completa, "://");
+    token = strstr(URL->url_completa, "://");
     if(token != NULL){
         token += 3;
     } else {
-        token = URl->url_completa;
+        token = URL->url_completa;
     }
 
     char* saveptr2;
@@ -50,37 +50,49 @@ Dados* parse(char* entrda){
     char* caminho  = strtok_r(NULL, "", &saveptr1);   
 
     if(!hostport){
-        freeDados(URl);
+        freeDados(URL);
         return NULL;
     }
 
     char* temp = strdup(hostport);
-    if(!temp){ freeDados(URl); return NULL; }
+    if(!temp){ freeDados(URL); return NULL; }
 
     char* p = strtok_r(temp, ":", &saveptr2);
-    if(!p){ free(temp); freeDados(URl); return NULL; }
-    URl->host = strdup(p);
+    if(!p){ free(temp); freeDados(URL); return NULL; }
+    URL->host = strdup(p);
 
     p = strtok_r(NULL, ":", &saveptr2);
     if(p != NULL){
-        URl->port = strdup(p);
+        URL->port = strdup(p);
     } else {
-        URl->port = strdup("80");
+        URL->port = strdup("80");
     }
     free(temp);
 
-    if(caminho != NULL && strlen(caminho) > 0){
-        size_t len = strlen(caminho) + 2;
-        URl->arquivo = (char*) malloc(len);
-        
-        if(!URl->arquivo){ freeDados(URl); return NULL; }
+    if (caminho) {
+        size_t len = strlen(caminho);
+        char* novoCaminho = malloc(len*3 + 1); 
+        if (!novoCaminho) { freeDados(URL); return NULL; }
 
-        sprintf(URl->arquivo, "/%s", caminho);
+        size_t j = 0;
+        for (size_t i = 0; i < len; i++) {
+            if (caminho[i] == ' ') {
+                novoCaminho[j++] = '%';
+                novoCaminho[j++] = '2';
+                novoCaminho[j++] = '0';
+            } else {
+                novoCaminho[j++] = caminho[i];
+            }
+        }
+        novoCaminho[j] = '\0';
+        URL->arquivo = novoCaminho;
     } else {
-        URl->arquivo = strdup("/");
+        URL->arquivo = strdup("/");
     }
 
-    return URl;
+    // fprintf(stderr, "-%s-", URL->arquivo);
+
+    return URL;
 }
 
 int conexao_socket(Dados* URl){
@@ -125,7 +137,7 @@ int conexao_socket(Dados* URl){
     return sfd;
 }
 
-// garante que a requisição seja mandada toda
+// garante que a requisição seja mandada toda. TCP é fresco e as vezes n manda tudo
 int send_all(int sfd, const char *buf, size_t len) {
     size_t total = 0;
     while (total < len) {
@@ -144,10 +156,11 @@ int get_http(Dados *URL){
     int sfd = conexao_socket(URL);
     if(sfd == -1) return -1;
 
-    char request[1024];
+    char request[4096];
     int r = snprintf(request, sizeof(request),
                      "GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n",
                      URL->arquivo, URL->host);
+
     if (r < 0 || r >= (int)sizeof(request)) {
         fprintf(stderr, "Erro ao montar request\n");
         close(sfd);
@@ -158,26 +171,47 @@ int get_http(Dados *URL){
         close(sfd);
         return -1;
     }
-    char *nome = strrchr(URL->arquivo, '/');
+
+    char *nome = strrchr(URL->arquivo, '/'); // se tiver uma pasta
     if (nome == NULL) nome = URL->arquivo; else nome++; // pula '/'
-    if (*nome == '\0') nome = "index.html"; 
+
+    if (*nome == '\0') nome = "index.html";
+
+    // Decodifica %20 para espaço no nome do arquivo
+    char *nome_decodificado = malloc(strlen(nome) + 1);
+    if (!nome_decodificado) {
+        close(sfd);
+        return -1;
+    }
+    
+    size_t j = 0;
+    for (size_t i = 0; nome[i] != '\0'; i++) {
+        if (nome[i] == '%' && nome[i+1] == '2' && nome[i+2] == '0') {
+            nome_decodificado[j++] = ' ';
+            i += 2; 
+        } else {
+            nome_decodificado[j++] = nome[i];
+        }
+    }
+    nome_decodificado[j] = '\0';
 
     const char *pastaDentino = "solicitados";
     char prefix[1024];
     snprintf(prefix, sizeof(prefix), "%s/", pastaDentino);
-    size_t tam = strlen(prefix) + strlen(nome) + 1; // +1 para '\0'
+    size_t tam = strlen(prefix) + strlen(nome_decodificado) + 1; // +1 para '\0'
     char *arquivo_saida = malloc(tam);
     if (!arquivo_saida) {
         perror("malloc");
         close(sfd);
         return -1;
     }
-    snprintf(arquivo_saida, tam, "%s%s", prefix, nome);
+    snprintf(arquivo_saida, tam, "%s%s", prefix, nome_decodificado);
+    free(nome_decodificado);  // libera memória do nome decodificado
     
     char buffer[4096];
     
      if (access(pastaDentino, F_OK) != 0){
-        if (mkdir(pastaDentino, 777) != 0){
+        if (mkdir(pastaDentino, 0777) != 0){
             perror("mkdir");
             close(sfd);
             return -1;
@@ -254,15 +288,35 @@ int get_http(Dados *URL){
 
 int main(int argc, char *argv[]){
     if(argc < 2) {
-        fprintf(stderr, "Argumento imcompleto\n");
+        fprintf(stderr, "Argumento incompleto\n");
         return 1;
     }
 
-    Dados* URL = parse(argv[1]);
+    size_t total_len = 0;
+    for(int i = 1; i < argc; i++){
+        total_len += strlen(argv[i]) + 1; 
+    }
+
+    char* url_completa = malloc(total_len);
+    if(!url_completa){
+        perror("malloc");
+        return 1;
+    }
+
+    url_completa[0] = '\0';
+    for(int i = 1; i < argc; i++){
+        strcat(url_completa, argv[i]);
+        if(i < argc - 1) strcat(url_completa, " "); 
+    }
+
+    Dados* URL = parse(url_completa);
+    free(url_completa);
+
     if(!URL){
         fprintf(stderr, "Erro ao parsear URL\n");
         return 1;
     }
+
 
     if(get_http(URL) != 0){
         fprintf(stderr, "Falha ao obter HTTP\n");
