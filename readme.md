@@ -29,11 +29,12 @@
 
   * Todas as requisções serão salvas na pasta "solicitados". Caso a pasta não exista, será criado uma.
   * Em caso de falha na requisição, será impresso o erro no terminal.
-  * A URL não pode haver espaços vazios
+  * A URL pode haver espaços vazios(tratamento com %20);
 
 ***
   **Servidor:**
 
-* Ao ser solicitado um arquivo inexistente, será listado os arquivos disponíveis. 
-* Todo acesso proibido (que não seja somente a pasta www) será bloqueado e retornado mensagem de erro.
-* Todos os envios tem cabeçalho de protocolo.
+  * Ao ser solicitado um arquivo inexistente, será listado os arquivos disponíveis. 
+  * Todo acesso proibido (que não seja somente a pasta www) será bloqueado e retornado mensagem de erro.
+  * Todos os envios tem cabeçalho de protocolo.
+  * A URL pode haver espaços vazios(tratamento com %20);
